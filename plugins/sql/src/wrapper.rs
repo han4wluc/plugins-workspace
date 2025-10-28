@@ -4,6 +4,8 @@
 
 #[cfg(feature = "sqlite")]
 use std::fs::create_dir_all;
+#[cfg(feature = "sqlite")]
+use std::path::Path;
 
 use indexmap::IndexMap;
 use serde_json::Value as JsonValue;
@@ -78,6 +80,9 @@ impl DbPool {
             "sqlite" => {
                 // Use absolute path directly, or map relative paths to app config dir
                 let conn_url = if std::path::Path::new(_db_path).is_absolute() {
+                    // Validate absolute path against fs scope
+                    let path = Path::new(_db_path);
+                    validate_path_scope(path, _app)?;
                     conn_url.to_string()
                 } else {
                     let app_path = _app
@@ -86,7 +91,7 @@ impl DbPool {
                         .expect("No App config path was found!");
 
                     create_dir_all(&app_path).expect("Couldn't create app config dir");
-                    
+
                     path_mapper(app_path, conn_url)
                 };
 
@@ -316,6 +321,35 @@ impl DbPool {
             DbPool::None => Vec::new(),
         })
     }
+}
+
+#[cfg(all(feature = "sqlite", feature = "fs-scope-validation"))]
+/// Validates that the given path is within the app's allowed fs scope
+fn validate_path_scope<R: Runtime>(path: &Path, app: &AppHandle<R>) -> Result<(), crate::Error> {
+    // Use FsExt trait to access fs scope, just like dialog plugin does
+    use tauri_plugin_fs::FsExt;
+
+    if let Some(fs_scope) = app.try_fs_scope() {
+        if fs_scope.is_allowed(path) {
+            Ok(())
+        } else {
+            Err(crate::Error::InvalidDbUrl(format!(
+                "Path '{}' is outside the allowed file system scope",
+                path.display()
+            )))
+        }
+    } else {
+        // Fallback: if fs plugin is not available, allow the path
+        // This maintains backward compatibility
+        Ok(())
+    }
+}
+
+#[cfg(all(feature = "sqlite", not(feature = "fs-scope-validation")))]
+/// Validates that the given path is within the app's allowed fs scope
+fn validate_path_scope<R: Runtime>(_path: &Path, _app: &AppHandle<R>) -> Result<(), crate::Error> {
+    // When fs-scope-validation feature is not enabled, allow all paths
+    Ok(())
 }
 
 #[cfg(feature = "sqlite")]
