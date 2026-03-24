@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-sql"
-version = "2.3.0"
+version = "2.3.2-patched.1"
 description = "Interface with SQL databases."
 authors = { workspace = true }
 license = { workspace = true }
@@ -35,9 +35,11 @@ sqlx = { version = "0.8", features = ["json", "time"] }
 time = "0.3"
 tokio = { version = "1", features = ["sync"] }
 indexmap = { version = "2", features = ["serde"] }
+tauri-plugin-fs = { version = "2.4.4", optional = true }
 
 [features]
 sqlite = ["sqlx/sqlite", "sqlx/runtime-tokio"]
 mysql = ["sqlx/mysql", "sqlx/runtime-tokio-rustls"]
 postgres = ["sqlx/postgres", "sqlx/runtime-tokio-rustls"]
+fs-scope-validation = ["dep:tauri-plugin-fs"]
 # TODO: bundled-cipher etc
