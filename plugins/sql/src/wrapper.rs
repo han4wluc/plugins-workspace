@@ -24,6 +24,53 @@ use sqlx::Sqlite;
 
 use crate::LastInsertId;
 
+const SQL_BYTES_TYPE_KEY: &str = "__routevn_sql_type";
+const SQL_BYTES_TYPE_VALUE: &str = "bytes";
+const SQL_BYTES_DATA_KEY: &str = "data";
+
+fn decode_bytes_value(value: &JsonValue) -> Option<Vec<u8>> {
+    let object = value.as_object()?;
+    if object.get(SQL_BYTES_TYPE_KEY)?.as_str()? != SQL_BYTES_TYPE_VALUE {
+        return None;
+    }
+
+    let bytes = object.get(SQL_BYTES_DATA_KEY)?.as_array()?;
+    let mut decoded = Vec::with_capacity(bytes.len());
+
+    for item in bytes {
+        let byte = item.as_u64()?;
+        if byte > u8::MAX as u64 {
+            return None;
+        }
+        decoded.push(byte as u8);
+    }
+
+    Some(decoded)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_bytes_value;
+    use serde_json::json;
+
+    #[test]
+    fn decodes_explicit_bytes_marker() {
+        let value = json!({
+            "__routevn_sql_type": "bytes",
+            "data": [123, 34, 97, 34, 125],
+        });
+
+        assert_eq!(decode_bytes_value(&value), Some(vec![123, 34, 97, 34, 125]));
+    }
+
+    #[test]
+    fn rejects_plain_json_arrays() {
+        let value = json!([123, 34, 97, 34, 125]);
+
+        assert_eq!(decode_bytes_value(&value), None);
+    }
+}
+
 pub enum DbPool {
     #[cfg(feature = "sqlite")]
     Sqlite(Pool<Sqlite>),
@@ -74,7 +121,7 @@ impl DbPool {
         let (db_type, _db_path) = conn_url
             .split_once(':')
             .ok_or_else(|| crate::Error::InvalidDbUrl(conn_url.to_string()))?;
-            
+
         match db_type {
             #[cfg(feature = "sqlite")]
             "sqlite" => {
@@ -163,7 +210,9 @@ impl DbPool {
             DbPool::Sqlite(pool) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
-                    if value.is_null() {
+                    if let Some(bytes) = decode_bytes_value(&value) {
+                        query = query.bind(bytes);
+                    } else if value.is_null() {
                         query = query.bind(None::<JsonValue>);
                     } else if value.is_string() {
                         query = query.bind(value.as_str().unwrap().to_owned())
@@ -183,7 +232,9 @@ impl DbPool {
             DbPool::MySql(pool) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
-                    if value.is_null() {
+                    if let Some(bytes) = decode_bytes_value(&value) {
+                        query = query.bind(bytes);
+                    } else if value.is_null() {
                         query = query.bind(None::<JsonValue>);
                     } else if value.is_string() {
                         query = query.bind(value.as_str().unwrap().to_owned())
@@ -203,7 +254,9 @@ impl DbPool {
             DbPool::Postgres(pool) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
-                    if value.is_null() {
+                    if let Some(bytes) = decode_bytes_value(&value) {
+                        query = query.bind(bytes);
+                    } else if value.is_null() {
                         query = query.bind(None::<JsonValue>);
                     } else if value.is_string() {
                         query = query.bind(value.as_str().unwrap().to_owned())
@@ -231,7 +284,9 @@ impl DbPool {
             DbPool::Sqlite(pool) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
-                    if value.is_null() {
+                    if let Some(bytes) = decode_bytes_value(&value) {
+                        query = query.bind(bytes);
+                    } else if value.is_null() {
                         query = query.bind(None::<JsonValue>);
                     } else if value.is_string() {
                         query = query.bind(value.as_str().unwrap().to_owned())
@@ -261,7 +316,9 @@ impl DbPool {
             DbPool::MySql(pool) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
-                    if value.is_null() {
+                    if let Some(bytes) = decode_bytes_value(&value) {
+                        query = query.bind(bytes);
+                    } else if value.is_null() {
                         query = query.bind(None::<JsonValue>);
                     } else if value.is_string() {
                         query = query.bind(value.as_str().unwrap().to_owned())
@@ -291,7 +348,9 @@ impl DbPool {
             DbPool::Postgres(pool) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
-                    if value.is_null() {
+                    if let Some(bytes) = decode_bytes_value(&value) {
+                        query = query.bind(bytes);
+                    } else if value.is_null() {
                         query = query.bind(None::<JsonValue>);
                     } else if value.is_string() {
                         query = query.bind(value.as_str().unwrap().to_owned())

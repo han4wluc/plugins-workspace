@@ -6852,7 +6852,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-sql"
-version = "2.3.1-rc1"
+version = "2.3.2-patched.1"
 dependencies = [
  "futures-core",
  "indexmap 2.9.0",
@@ -6862,6 +6862,7 @@ dependencies = [
  "sqlx",
  "tauri",
  "tauri-plugin",
+ "tauri-plugin-fs",
  "thiserror 2.0.12",
  "time",
  "tokio",
