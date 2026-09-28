@@ -145,7 +145,20 @@ impl DbPool {
                 if !Sqlite::database_exists(&conn_url).await.unwrap_or(false) {
                     Sqlite::create_database(&conn_url).await?;
                 }
-                Ok(Self::Sqlite(Pool::connect(&conn_url).await?))
+                // One connection per database. Each `execute`/`select` call checks a
+                // connection out of the pool separately, so with several connections a
+                // transaction sent as separate calls (BEGIN, statements, COMMIT) can be
+                // split across them: a statement can miss the transaction's uncommitted
+                // changes, block on its write lock, or COMMIT on a connection with no
+                // transaction. SQLite allows one writer at a time anyway. The single
+                // connection is never retired, so a pooled transaction is not lost.
+                let pool = sqlx::sqlite::SqlitePoolOptions::new()
+                    .max_connections(1)
+                    .idle_timeout(None)
+                    .max_lifetime(None)
+                    .connect(&conn_url)
+                    .await?;
+                Ok(Self::Sqlite(pool))
             }
             #[cfg(feature = "mysql")]
             "mysql" => {
